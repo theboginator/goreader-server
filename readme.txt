@@ -1,11 +1,21 @@
 GoReader - A server for listening to a RFID-reading client running the GoReader Client Software
+Written by Jacob Bogner
+Current Version: 0.5
 
 Settings stored in config.csv within the '/assets' directory
 
 Program functions:
--Listens to a a reader sending data to a configurable network port, receives an id # and a transaction amount from reader
--Looks up id # on table and adds/subtracts the transaction amount from the principal balance
--Will decline the transaction if the transaction would lower the principal balance below $0 OR the account is locked
--Reports back to reader application "PASS/FAIL"
--Allows intuitive editing of user table and balances
--Allows editing of network parameters
+- Listens to a network port for incoming messages from a PED (Payment Entry Device - a Raspberry Pi running the
+goreader-client application)
+
+- Manages a map of all user accounts and their associated balances
+
+- When PED reports a new account number and transaction amount, the number is looked up in the map and the transaction
+amount is added/subtracted from the balance. If the new balance is <0, transaction will be rejected and a "denied"
+message will be sent to PED, else a "success" message will be sent to PED and the account balance will be updated
+
+To Install:
+
+Open GoLand and check out the latest version from https://github.com/theboginator/goreader-server.git
+go build main.go
+go run main.go

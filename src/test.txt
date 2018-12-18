@@ -1,0 +1,121 @@
+// This code, based off examples cited below, implements a chat server client with requested capabilities
+// Code built with examples provided by A. A. Donovan & Brian W. Kernighan
+
+package main
+
+import (
+"bufio"
+"fmt"
+"log"
+"net"
+"time"
+)
+
+const MAXOUT = 2 * time.Minute //configure a timeout 2 minutes in this case
+
+type client struct {
+	Out  chan<- string
+	Name string
+}
+
+var (
+	outputChan  = make(chan client) //Channel for messages going to PED
+	inputChan = make(chan string) // Channel for incoming PED messages
+)
+
+func sendMessages() {
+	clients := make(map[client]bool) // all connected clients
+	for {
+		select {
+		case message := <-messageChan:
+			// Broadcast incoming message to all
+			// clients' outgoing message channels.
+			for cli := range clients {
+				select {
+				case cli.Out <- message:
+				default:
+					// Skip client if it's reading messageChan slowly.
+				}
+			}
+
+		case cli := <-enterChan:
+			clients[cli] = true
+			cli.Out <- "Present:"
+			for c := range clients {
+				cli.Out <- c.Name
+			}
+
+		case cli := <-leavingChan:
+			delete(clients, cli)
+			close(cli.Out)
+		}
+	}
+}
+
+func assessConnections(conn net.Conn) {
+	output := make(chan string, 10) // outgoing client data
+	go clientWriter(conn, output)
+	in := make(chan string) // incoming client data
+	go clientReader(conn, in)
+
+	var specClient string
+	usrTimeout := time.NewTimer(MAXOUT) //start a timeout for the user
+	output <- "Enter your name:"
+	select {
+	case name := <-in:
+		specClient = name
+	case <-usrTimeout.C:
+		conn.Close() //end the connection
+		return
+	}
+	cli := client{output, specClient}
+	output <- "Velcome to KGB Chat, " + specClient
+	messageChan <- "Comrade " + specClient + " has joined ze KGB"
+	enterChan <- cli
+	idle := time.NewTimer(MAXOUT)
+
+	for {
+		select {
+		case message := <-in:
+			messageChan <- specClient + ": " + message
+			idle.Reset(MAXOUT)
+		case <-idle.C:
+			conn.Close()
+			break
+		}
+	}
+
+	leavingChan <- cli
+	messageChan <- "KGB has executed Comrade " + specClient
+	conn.Close()
+}
+
+func clientWriter(conn net.Conn, ch <-chan string) {
+	for message := range ch {
+		fmt.Fprintln(conn, message) // NOTE: ignoring network errors
+	}
+}
+
+func clientReader(conn net.Conn, ch chan<- string) {
+	input := bufio.NewScanner(conn)
+	for input.Scan() {
+		ch <- input.Text()
+	}
+}
+
+func main() {
+	networkMgr, err := net.Listen("tcp", "localhost:8000") //setup connection
+	if err != nil {
+		log.Fatal(err) //handle an error
+	}
+
+	go sendMessages()
+	for {
+		conn, err := networkMgr.Accept()
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		go assessConnections(conn)
+	}
+}

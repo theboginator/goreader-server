@@ -2,55 +2,54 @@ package main
 
 import (
 	"bufio"
-	"encoding/csv"
 	"fmt"
-	"io/ioutil"
-	"os"
+	"log"
+	"net"
 )
 
-type Account struct{ //Basic account structure. Name is a string, balance is a float32
-	name string
+type Account struct { //Basic account structure. Name is a string, balance is a float32
+	name    string
 	balance float32
 }
 
-var accounts map[int]Account //declare a map to manage all accounts
+var (
+	outputChan = make(chan bool)   //Channel for messages going to PED
+	inputChan  = make(chan string) // Channel for incoming PED messages
+	accounts   map[int]Account     //declare a map to manage all accounts
+)
 
-func setup() map[string]string{
-	confileName := "/assets/config.csv"
-	csvFile, err:= os.Open(confileName)
-	for err != nil { //Handle config file opening error
-		fmt.Println(err)
-		fmt.Println("Please specify path to 'config.csv': ")
-		_, err := fmt.Scan(&confileName)
-		_, err := os.Open(confileName)
-	}
-	reader := csv.NewReader(bufio.NewReader(csvFile))
-	line, err = reader.Read()
-
-	configuration := make(map[string]string)
-	for row, col := range(configfile){
-
-	}
-	return configuration
+func configureConnections(conn net.Conn) {
+	output := make(chan string, 10) // outgoing client data
+	go clientWriter(conn, output)
+	in := make(chan string) // incoming client data
+	go clientReader(conn, in)
 }
 
-var loadAccountMap map(){
-	var fileName string //Declare a string to hold the name of the textfile
-	rawData, err := ioutil.ReadFile(fileName) //attempt to open the file
-	if err != nil { //Handle file opening error
-		fmt.Println(err)
-		return
+func clientWriter(conn net.Conn, ch <-chan bool) {
+	fmt.Fprintln(conn, message)
+}
+
+func clientReader(conn net.Conn, ch chan<- string) {
+	input := bufio.NewScanner(conn)
+	for input.Scan() {
+		ch <- input.Text()
 	}
-	accounts = make(map[int]Account)
-	accounts[165643] = Account{
-		"Alice",40.68,
-	}
-	fmt.Println(accounts[165643])
 }
 
 func main() {
-	configuration := setup()
-	usertable := configuration(1,0)
-	accounts := loadAccountMap(configuration(usertable))
+	networkMgr, err := net.Listen("tcp", "localhost:8000") //setup connection
+	if err != nil {
+		log.Fatal(err) //handle an error
+	}
 
+	//go sendMessage()
+	for {
+		conn, err := networkMgr.Accept()
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		go configureConnections(conn)
+
+	}
 }
