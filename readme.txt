@@ -19,3 +19,5 @@ To Install:
 Open GoLand and check out the latest version from https://github.com/theboginator/goreader-server.git
 go build main.go
 go run main.go
+
+WARNING: Currently no guarantee of anything!
