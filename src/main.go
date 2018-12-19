@@ -19,8 +19,6 @@ var (
 
 func configureConnections(conn net.Conn) { //Setup connection manager to handle incoming/outgoing data
 	go cardReader(conn)
-	go valReader(conn)
-
 }
 
 func clientWriter(conn net.Conn, result string) { //Send a "accepted/declined" message in the form of a boolean
@@ -30,21 +28,12 @@ func clientWriter(conn net.Conn, result string) { //Send a "accepted/declined" m
 func cardReader(conn net.Conn) { //Read userID sent from Pi
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
-		raw := input.Text()
-		var data = strings.Split(raw, ",")
-		id, _ := strconv.ParseInt(data[0], 10, 64)
-		value, _ := strconv.ParseFloat(data[1], 64)
-		idChan <- id
-		valueChan <- value
-	}
-}
-
-func valReader(conn net.Conn) { //Read transaction amount sent from Pi
-	input := bufio.NewScanner(conn)
-	for input.Scan() {
-		data := input.Text()
-		value, _ := strconv.ParseFloat(data, 64)
-		valueChan <- value
+		raw := input.Text()                         //get raw data
+		var data = strings.Split(raw, ",")          //Split it into the userid and transaction amount
+		id, _ := strconv.ParseInt(data[0], 10, 64)  //userid
+		value, _ := strconv.ParseFloat(data[1], 64) //transaction amount
+		idChan <- id                                //load the userid into the IDChan
+		valueChan <- value                          //load the value into the ValueChan
 	}
 }
 
@@ -62,37 +51,35 @@ func handleTransaction(id int64, value float64) bool { //Attempt to process the 
 		accept = true              //Accept transaction
 	}
 	updateTable()
-	return accept
+	return accept //Return whether the transaction succeeded or not
 }
 
-func updateTable() {
+func updateTable() { //Update the account map
 	for id, balance := range accounts {
 		fmt.Printf("User ID: [%s] Balance: [%s]\n", id, balance)
 	}
 }
 
 func main() {
-	networkMgr, err := net.Listen("tcp", "localhost:8000") //setup connection
+	networkMgr, err := net.Listen("tcp", "localhost:6000") //setup connection
 	if err != nil {
 		log.Fatal(err) //handle an error
 	}
 
 	for {
-		conn, err := networkMgr.Accept()
+		conn, err := networkMgr.Accept() //Accept a connection from the PED
 		if err != nil {
 			log.Print(err)
 			continue
 		}
-		configureConnections(conn)
-		select {
-		case newID := <-idChan:
-			reqValue := <-valueChan
-			accepted := handleTransaction(newID, reqValue)
-			if accepted {
-				clientWriter(conn, "Approved")
-			} else {
-				clientWriter(conn, "Declined")
-			}
+		configureConnections(conn)                     //Setup the goroutines that will listen for data and put it in the appropriate channels
+		newID := <-idChan                              //Once the client sends a transaction, record the account number
+		reqValue := <-valueChan                        //Record the transaction amount
+		accepted := handleTransaction(newID, reqValue) //Attempt the transaction
+		if accepted {
+			clientWriter(conn, "Approved") //Send an approved message
+		} else {
+			clientWriter(conn, "Declined") //Send a declined message
 		}
 	}
 }

@@ -7,9 +7,10 @@ import (
 )
 
 func main() {
-	conn, err := net.Dial("tcp", "localhost:8000")
+	conn, err := net.Dial("tcp", "localhost:6000")
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(conn, "541,750")
+	fmt.Fprintln(conn, "679,64")
+
 }
