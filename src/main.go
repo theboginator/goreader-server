@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"strings"
 )
 
 var (
@@ -17,7 +18,7 @@ var (
 )
 
 func configureConnections(conn net.Conn) { //Setup connection manager to handle incoming/outgoing data
-	go idReader(conn)
+	go cardReader(conn)
 	go valReader(conn)
 
 }
@@ -26,12 +27,15 @@ func clientWriter(conn net.Conn, result string) { //Send a "accepted/declined" m
 	fmt.Fprintln(conn, result)
 }
 
-func idReader(conn net.Conn) { //Read userID sent from Pi
+func cardReader(conn net.Conn) { //Read userID sent from Pi
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
-		data := input.Text()
-		id, _ := strconv.ParseInt(data, 10, 64)
+		raw := input.Text()
+		var data = strings.Split(raw, ",")
+		id, _ := strconv.ParseInt(data[0], 10, 64)
+		value, _ := strconv.ParseFloat(data[1], 64)
 		idChan <- id
+		valueChan <- value
 	}
 }
 
@@ -63,7 +67,7 @@ func handleTransaction(id int64, value float64) bool { //Attempt to process the 
 
 func updateTable() {
 	for id, balance := range accounts {
-		fmt.Printf("key[%s] value[%s]\n", id, balance)
+		fmt.Printf("User ID: [%s] Balance: [%s]\n", id, balance)
 	}
 }
 
